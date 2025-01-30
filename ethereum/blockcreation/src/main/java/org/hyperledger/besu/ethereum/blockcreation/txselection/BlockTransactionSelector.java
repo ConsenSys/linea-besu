@@ -225,11 +225,18 @@ public class BlockTransactionSelector implements BlockTransactionSelectionServic
 
       cancelEvaluatingTxWithGraceTime(txSelectionTask);
 
-      LOG.warn(
-          "Interrupting the selection of transactions for block inclusion as it exceeds"
-              + " the maximum configured duration of {}ms",
-          blockTxsSelectionMaxTime,
-          e);
+      final var logBuilder =
+          LOG.atWarn()
+              .setMessage(
+                  "Interrupting the selection of transactions for block inclusion as it exceeds"
+                      + " the maximum configured duration of {}ms")
+              .addArgument(blockTxsSelectionMaxTime);
+
+      if (LOG.isTraceEnabled()) {
+        logBuilder.setCause(e).log();
+      } else {
+        logBuilder.log();
+      }
     }
   }
 
