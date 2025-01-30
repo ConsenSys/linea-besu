@@ -19,13 +19,14 @@ import org.hyperledger.besu.ethereum.blockcreation.txselection.TransactionEvalua
 import org.hyperledger.besu.ethereum.blockcreation.txselection.TransactionSelectionResults;
 import org.hyperledger.besu.ethereum.processing.TransactionProcessingResult;
 import org.hyperledger.besu.plugin.data.TransactionSelectionResult;
+import org.hyperledger.besu.plugin.services.txselection.TransactionSelector;
 
 /**
  * This class represents an abstract transaction selector which provides methods to evaluate
  * transactions.
  */
-public abstract class AbstractTransactionSelector {
-  final BlockSelectionContext context;
+public abstract class AbstractTransactionSelector implements TransactionSelector {
+  protected final BlockSelectionContext context;
 
   public AbstractTransactionSelector(final BlockSelectionContext context) {
     this.context = context;
@@ -47,12 +48,30 @@ public abstract class AbstractTransactionSelector {
    * processing result.
    *
    * @param evaluationContext The current selection session data.
-   * @param blockTransactionResults The results of other transaction evaluations in the same block.
    * @param processingResult The result of transaction processing.
    * @return The result of the transaction evaluation
    */
   public abstract TransactionSelectionResult evaluateTransactionPostProcessing(
       final TransactionEvaluationContext evaluationContext,
-      final TransactionSelectionResults blockTransactionResults,
       final TransactionProcessingResult processingResult);
+
+  /**
+   * Method called when a transaction is selected to be added to a block.
+   *
+   * @param evaluationContext The current selection context
+   * @param processingResult The result of processing the selected transaction.
+   */
+  public void onTransactionSelected(
+      final TransactionEvaluationContext evaluationContext,
+      final TransactionProcessingResult processingResult) {}
+
+  /**
+   * Method called when a transaction is not selected to be added to a block.
+   *
+   * @param evaluationContext The current selection context
+   * @param transactionSelectionResult The transaction selection result
+   */
+  public void onTransactionNotSelected(
+      final TransactionEvaluationContext evaluationContext,
+      final TransactionSelectionResult transactionSelectionResult) {}
 }

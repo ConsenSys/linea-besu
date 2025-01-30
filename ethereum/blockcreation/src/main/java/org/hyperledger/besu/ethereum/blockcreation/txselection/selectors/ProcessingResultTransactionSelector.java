@@ -54,14 +54,12 @@ public class ProcessingResultTransactionSelector extends AbstractTransactionSele
    * result.
    *
    * @param evaluationContext The current selection session data.
-   * @param blockTransactionResults The results of other transaction evaluations in the same block.
    * @param processingResult The processing result of the transaction.
    * @return The result of the transaction selection.
    */
   @Override
   public TransactionSelectionResult evaluateTransactionPostProcessing(
       final TransactionEvaluationContext evaluationContext,
-      final TransactionSelectionResults blockTransactionResults,
       final TransactionProcessingResult processingResult) {
 
     if (processingResult.isInvalid()) {
@@ -92,7 +90,7 @@ public class ProcessingResultTransactionSelector extends AbstractTransactionSele
           .addArgument(invalidReason)
           .addArgument(transaction::toTraceLog)
           .log();
-      return TransactionSelectionResult.invalidTransient(invalidReason.name());
+      return TransactionSelectionResult.invalidPenalized(invalidReason.name());
     }
     // If the transaction was invalid for any other reason, delete it, and continue.
     LOG.atTrace()

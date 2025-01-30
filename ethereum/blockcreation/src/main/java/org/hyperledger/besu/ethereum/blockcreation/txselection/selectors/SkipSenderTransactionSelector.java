@@ -14,41 +14,40 @@
  */
 package org.hyperledger.besu.ethereum.blockcreation.txselection.selectors;
 
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.ethereum.blockcreation.txselection.BlockSelectionContext;
 import org.hyperledger.besu.ethereum.blockcreation.txselection.TransactionEvaluationContext;
 import org.hyperledger.besu.ethereum.blockcreation.txselection.TransactionSelectionResults;
-import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.processing.TransactionProcessingResult;
 import org.hyperledger.besu.plugin.data.TransactionSelectionResult;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * This class extends AbstractTransactionSelector and provides a specific implementation for
- * evaluating transactions based on Blob price. It checks if a transaction's current blob price is
- * below the minimum and determines the selection result accordingly.
- */
-public class BlobPriceTransactionSelector extends AbstractTransactionSelector {
-  private static final Logger LOG = LoggerFactory.getLogger(BlobPriceTransactionSelector.class);
+public class SkipSenderTransactionSelector extends AbstractTransactionSelector {
+  private static final Logger LOG = LoggerFactory.getLogger(SkipSenderTransactionSelector.class);
+  private final Set<Address> skippedSenders = new HashSet<>();
 
-  public BlobPriceTransactionSelector(final BlockSelectionContext context) {
+  public SkipSenderTransactionSelector(final BlockSelectionContext context) {
     super(context);
   }
 
-  /**
-   * Evaluates a transaction considering its blob price.
-   *
-   * @param evaluationContext The current selection session data.
-   * @param ignored The results of other transaction evaluations in the same block.
-   * @return The result of the transaction selection.
-   */
   @Override
   public TransactionSelectionResult evaluateTransactionPreProcessing(
       final TransactionEvaluationContext evaluationContext,
       final TransactionSelectionResults ignored) {
-    if (transactionBlobPriceBelowMin(evaluationContext.getTransaction())) {
-      return TransactionSelectionResult.BLOB_PRICE_BELOW_CURRENT_MIN;
+    final var sender = evaluationContext.getTransaction().getSender();
+    if (skippedSenders.contains(sender)) {
+      LOG.atTrace()
+          .setMessage("Not selecting tx {} since its sender {} is in the skip list")
+          .addArgument(() -> evaluationContext.getPendingTransaction().toTraceLog())
+          .addArgument(sender)
+          .log();
+
+      return TransactionSelectionResult.SENDER_WITH_PREVIOUS_TX_NOT_SELECTED;
     }
     return TransactionSelectionResult.SELECTED;
   }
@@ -62,21 +61,19 @@ public class BlobPriceTransactionSelector extends AbstractTransactionSelector {
   }
 
   /**
-   * Checks if the transaction's blob price is below the minimum.
+   * When a transaction is not selected we can skip processing any following transaction from the
+   * same sender, since it will never be selected due to the nonce gap, so we add the sender to the
+   * skip list.
    *
-   * @param transaction The transaction to be checked.
-   * @return True if the transaction's data price is below the minimum, false otherwise.
+   * @param evaluationContext The current selection context
+   * @param transactionSelectionResult The transaction selection result
    */
-  private boolean transactionBlobPriceBelowMin(final Transaction transaction) {
-    if (transaction.getType().supportsBlob()) {
-      if (transaction.getMaxFeePerBlobGas().orElseThrow().lessThan(context.blobGasPrice())) {
-        LOG.trace(
-            "Max fee per Blob Gas {} below {}",
-            transaction.getMaxFeePerBlobGas(),
-            context.blobGasPrice());
-        return true;
-      }
-    }
-    return false;
+  @Override
+  public void onTransactionNotSelected(
+      final TransactionEvaluationContext evaluationContext,
+      final TransactionSelectionResult transactionSelectionResult) {
+    final var sender = evaluationContext.getTransaction().getSender();
+    skippedSenders.add(sender);
+    LOG.trace("Sender {} added to the skip list", sender);
   }
 }
