@@ -446,6 +446,44 @@ public abstract class AbstractBlockTransactionSelectorTest {
   }
 
   @Test
+  public void ifATransactionIsNotSelectedFollowingOnesFromTheSameSenderAreSkipped() {
+    final ProcessableBlockHeader blockHeader = createBlock(300_000);
+    final Address miningBeneficiary = AddressHelpers.ofValue(1);
+    final BlockTransactionSelector selector =
+        createBlockSelectorAndSetupTxPool(
+            defaultTestMiningConfiguration,
+            transactionProcessor,
+            blockHeader,
+            miningBeneficiary,
+            Wei.ZERO,
+            transactionSelectionService);
+
+    // Add 3 transactions from the same sender to the Pending Transactions
+    // first is selected
+    // second id not selected
+    // third is skipped, not processed, since cannot be selected due to the nonce gap
+    final Transaction[] txs =
+        new Transaction[] {
+          createTransaction(0, Wei.of(10), (long) (blockHeader.getGasLimit() * 0.5), SENDER1),
+          createTransaction(1, Wei.of(10), (long) (blockHeader.getGasLimit() * 0.6), SENDER1),
+          createTransaction(2, Wei.of(10), (long) (blockHeader.getGasLimit() * 0.1), SENDER1)
+        };
+
+    for (Transaction tx : txs) {
+      ensureTransactionIsValid(tx);
+    }
+    transactionPool.addRemoteTransactions(Arrays.stream(txs).toList());
+
+    final TransactionSelectionResults results = selector.buildTransactionListForBlock();
+
+    assertThat(results.getSelectedTransactions()).containsExactly(txs[0]);
+    assertThat(results.getNotSelectedTransactions())
+        .containsOnly(
+            entry(txs[1], TransactionSelectionResult.TX_TOO_LARGE_FOR_REMAINING_GAS),
+            entry(txs[2], TransactionSelectionResult.SENDER_WITH_PREVIOUS_TX_NOT_SELECTED));
+  }
+
+  @Test
   public void transactionSelectionStopsWhenBlockIsFull() {
     final ProcessableBlockHeader blockHeader = createBlock(3_000_000);
 

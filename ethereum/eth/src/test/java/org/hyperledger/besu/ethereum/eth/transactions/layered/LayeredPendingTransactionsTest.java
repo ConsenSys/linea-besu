@@ -28,12 +28,9 @@ import static org.hyperledger.besu.ethereum.eth.transactions.layered.LayeredRemo
 import static org.hyperledger.besu.ethereum.eth.transactions.layered.LayeredRemovalReason.PoolRemovalReason.REPLACED;
 import static org.hyperledger.besu.ethereum.transaction.TransactionInvalidReason.GAS_PRICE_BELOW_CURRENT_BASE_FEE;
 import static org.hyperledger.besu.ethereum.transaction.TransactionInvalidReason.UPFRONT_COST_EXCEEDS_BALANCE;
-import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.BLOB_PRICE_BELOW_CURRENT_MIN;
 import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.BLOCK_FULL;
 import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.BLOCK_OCCUPANCY_ABOVE_THRESHOLD;
-import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.CURRENT_TX_PRICE_BELOW_MIN;
 import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.SELECTED;
-import static org.hyperledger.besu.plugin.data.TransactionSelectionResult.TX_TOO_LARGE_FOR_REMAINING_GAS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -482,51 +479,6 @@ public class LayeredPendingTransactionsTest extends BaseTransactionPoolTest {
         });
 
     assertThat(iterationOrder).containsExactly(transaction0, transaction1, transaction2);
-  }
-
-  // ToDo: check is now done by the skip sender selector, move the test there
-  //  @ParameterizedTest
-  //  @MethodSource
-  //  public void ignoreSenderTransactionsAfterASkippedOne(
-  //      final TransactionSelectionResult skipSelectionResult) {
-  //    final Transaction transaction0a = createTransaction(0, DEFAULT_BASE_FEE.add(Wei.of(20)),
-  // KEYS1);
-  //    final Transaction transaction1a = createTransaction(1, DEFAULT_BASE_FEE.add(Wei.of(20)),
-  // KEYS1);
-  //    final Transaction transaction2a = createTransaction(2, DEFAULT_BASE_FEE.add(Wei.of(20)),
-  // KEYS1);
-  //    final Transaction transaction0b = createTransaction(0, DEFAULT_BASE_FEE.add(Wei.of(10)),
-  // KEYS2);
-  //
-  //    pendingTransactions.addTransaction(
-  //        createLocalPendingTransaction(transaction0a), Optional.empty());
-  //    pendingTransactions.addTransaction(
-  //        createLocalPendingTransaction(transaction1a), Optional.empty());
-  //    pendingTransactions.addTransaction(
-  //        createLocalPendingTransaction(transaction2a), Optional.empty());
-  //    pendingTransactions.addTransaction(
-  //        createLocalPendingTransaction(transaction0b), Optional.empty());
-  //
-  //    final List<Transaction> iterationOrder = new ArrayList<>(3);
-  //    pendingTransactions.selectTransactions(
-  //        pendingTx -> {
-  //          iterationOrder.add(pendingTx.getTransaction());
-  //          // pretending that the 2nd tx of the 1st sender is not selected
-  //          return pendingTx.getNonce() == 1 ? skipSelectionResult : SELECTED;
-  //        });
-  //
-  //    // the 3rd tx of the 1st must not be processed, since the 2nd is skipped
-  //    // but the 2nd sender must not be affected
-  //    assertThat(iterationOrder).containsExactly(transaction0a, transaction1a, transaction0b);
-  //  }
-
-  static Stream<TransactionSelectionResult> ignoreSenderTransactionsAfterASkippedOne() {
-    return Stream.of(
-        CURRENT_TX_PRICE_BELOW_MIN,
-        BLOB_PRICE_BELOW_CURRENT_MIN,
-        TX_TOO_LARGE_FOR_REMAINING_GAS,
-        TransactionSelectionResult.invalidPenalized(GAS_PRICE_BELOW_CURRENT_BASE_FEE.name()),
-        TransactionSelectionResult.invalid(UPFRONT_COST_EXCEEDS_BALANCE.name()));
   }
 
   @Test
