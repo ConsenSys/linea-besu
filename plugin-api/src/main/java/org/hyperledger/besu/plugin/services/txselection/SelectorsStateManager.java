@@ -155,7 +155,7 @@ public class SelectorsStateManager {
      *
      * @return the current state
      */
-    public S getState() {
+    public S get() {
       return state;
     }
 
@@ -164,7 +164,7 @@ public class SelectorsStateManager {
      *
      * @param state the new state
      */
-    public void setState(final S state) {
+    public void set(final S state) {
       this.state = state;
     }
   }
@@ -188,7 +188,7 @@ public class SelectorsStateManager {
      */
     @Override
     public DuplicableLongState deepCopy() {
-      return new DuplicableLongState(getState());
+      return new DuplicableLongState(get());
     }
   }
 }

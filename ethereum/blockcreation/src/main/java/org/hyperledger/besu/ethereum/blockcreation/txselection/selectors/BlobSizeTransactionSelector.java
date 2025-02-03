@@ -60,7 +60,7 @@ public class BlobSizeTransactionSelector
     if (tx.getType().supportsBlob()) {
 
       final var selectorState = getWorkingState();
-      final var cumulativeBlobGasUsed = selectorState.getState();
+      final var cumulativeBlobGasUsed = selectorState.get();
 
       final var remainingBlobGas =
           context.gasLimitCalculator().currentBlobGasLimit() - cumulativeBlobGasUsed;
@@ -88,7 +88,7 @@ public class BlobSizeTransactionSelector
         return TransactionSelectionResult.TX_TOO_LARGE_FOR_REMAINING_BLOB_GAS;
       }
 
-      selectorState.setState(cumulativeBlobGasUsed + requestedBlobGas);
+      selectorState.set(cumulativeBlobGasUsed + requestedBlobGas);
     }
     return TransactionSelectionResult.SELECTED;
   }

@@ -22,7 +22,8 @@ import org.hyperledger.besu.plugin.data.ProcessableBlockHeader;
 import com.google.common.base.Stopwatch;
 
 public class TransactionEvaluationContext
-    implements org.hyperledger.besu.plugin.services.txselection.TransactionEvaluationContext<PendingTransaction> {
+    implements org.hyperledger.besu.plugin.services.txselection.TransactionEvaluationContext<
+        PendingTransaction> {
   private final ProcessableBlockHeader pendingBlockHeader;
   private final org.hyperledger.besu.datatypes.PendingTransaction pendingTransaction;
   private final Stopwatch evaluationTimer;
