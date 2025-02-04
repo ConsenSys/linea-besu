@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -32,9 +33,10 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("rawtypes")
 public class SelectorsStateManager {
-  private final List<Map<TransactionSelector, DuplicableState>> uncommitedStates =
-      new ArrayList<>();
-  private Map<TransactionSelector, DuplicableState> committedState = new HashMap<>();
+  private final List<Map<TransactionSelector, SelectorState<?, ? extends StateDuplicator<?>>>>
+      uncommitedStates = new ArrayList<>();
+  private Map<TransactionSelector, SelectorState<?, ? extends StateDuplicator<?>>> committedState =
+      new HashMap<>();
   private volatile boolean blockSelectionStarted = false;
 
   /** Create an empty selectors state manager, here to make javadoc linter happy. */
@@ -48,13 +50,15 @@ public class SelectorsStateManager {
    *
    * @param selector the selector
    * @param initialState the initial value of the state
+   * @param duplicator the state duplicator
    * @param <S> the type of the selector state
+   * @param <D> the type of the state duplicator
    */
-  public <S extends DuplicableState> void createSelectorState(
-      final TransactionSelector selector, final S initialState) {
+  public <S, D extends StateDuplicator<S>> void createSelectorState(
+      final TransactionSelector selector, final S initialState, final D duplicator) {
     checkState(
         !blockSelectionStarted, "Cannot create selector state after block selection is started");
-    committedState.put(selector, initialState);
+    committedState.put(selector, new SelectorState<>(initialState, duplicator));
   }
 
   /**
@@ -62,16 +66,17 @@ public class SelectorsStateManager {
    * working state based on the initial state.
    *
    * <p>After this method is called, it is not possible to call anymore {@link
-   * #createSelectorState(TransactionSelector, DuplicableState)}
+   * #createSelectorState(TransactionSelector, Object, StateDuplicator)}
    */
   public void blockSelectionStarted() {
     blockSelectionStarted = true;
     uncommitedStates.add(duplicateLastState());
   }
 
-  private Map<TransactionSelector, DuplicableState> duplicateLastState() {
+  private Map<TransactionSelector, SelectorState<?, ? extends StateDuplicator<?>>>
+      duplicateLastState() {
     return getLast().entrySet().stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().deepCopy()));
+        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().duplicated()));
   }
 
   /**
@@ -79,11 +84,23 @@ public class SelectorsStateManager {
    *
    * @param selector the selector
    * @return the working state of the selector
-   * @param <S> the type of the selector state
+   * @param <T> the type of the selector state
    */
   @SuppressWarnings("unchecked")
-  public <S extends DuplicableState> S getSelectorWorkingState(final TransactionSelector selector) {
-    return (S) uncommitedStates.getLast().get(selector);
+  public <T> T getSelectorWorkingState(final TransactionSelector selector) {
+    return (T) uncommitedStates.getLast().get(selector).get();
+  }
+
+  /**
+   * set the working state for the specified selector
+   *
+   * @param selector the selector
+   * @param newState the new state
+   * @param <T> the type of the selector state
+   */
+  @SuppressWarnings("unchecked")
+  public <T> void setSelectorWorkingState(final TransactionSelector selector, final T newState) {
+    ((SelectorState<T, StateDuplicator<T>>) uncommitedStates.getLast().get(selector)).set(newState);
   }
 
   /**
@@ -91,12 +108,11 @@ public class SelectorsStateManager {
    *
    * @param selector the selector
    * @return the commited state of the selector
-   * @param <S> the type of the selector state
+   * @param <T> the type of the selector state
    */
   @SuppressWarnings("unchecked")
-  public <S extends DuplicableState> S getSelectorCommittedState(
-      final TransactionSelector selector) {
-    return (S) committedState.get(selector);
+  public <T> T getSelectorCommittedState(final TransactionSelector selector) {
+    return (T) committedState.get(selector).get();
   }
 
   /**
@@ -118,7 +134,7 @@ public class SelectorsStateManager {
     uncommitedStates.add(duplicateLastState());
   }
 
-  private Map<TransactionSelector, DuplicableState> getLast() {
+  private Map<TransactionSelector, SelectorState<?, ? extends StateDuplicator<?>>> getLast() {
     if (uncommitedStates.isEmpty()) {
       return committedState;
     }
@@ -126,29 +142,64 @@ public class SelectorsStateManager {
   }
 
   /**
-   * A duplicate state object is one that is able to return, update and duplicate the state it
+   * A function that create a duplicate of the input object. The duplication must be a deep copy.
+   *
+   * @param <T> the type of the object
+   */
+  @FunctionalInterface
+  public interface StateDuplicator<T> extends UnaryOperator<T> {
+    /**
+     * Duplicate the input objet
+     *
+     * @param t the input object to duplicate
+     * @return a deep copy of the input object
+     */
+    T duplicate(T t);
+
+    @Override
+    default T apply(final T t) {
+      return duplicate(t);
+    }
+
+    /**
+     * Utility to duplicate a long
+     *
+     * @param l a long
+     * @return a copy of the long
+     */
+    static long duplicateLong(final long l) {
+      return l;
+    }
+  }
+
+  /**
+   * A selector state object is one that is able to return, update and duplicate the state it
    * contains
    *
    * @param <S> the type of the state
    */
-  public abstract static class DuplicableState<S> {
+  private static class SelectorState<S, D extends StateDuplicator<S>> {
+    private final D duplicator;
     private S state;
 
     /**
-     * Create a duplicate state with the initial value
+     * Create a selector state with the initial value
      *
-     * @param state the initial state
+     * @param initialState the initial initialState
      */
-    public DuplicableState(final S state) {
-      this.state = state;
+    public SelectorState(final S initialState, final D duplicator) {
+      this.state = initialState;
+      this.duplicator = duplicator;
     }
 
     /**
      * The method that concrete classes must implement to create a deep copy of the state
      *
-     * @return a new duplicable state with a deep copy of the state
+     * @return a new selector state with a deep copy of the state
      */
-    protected abstract DuplicableState<S> deepCopy();
+    private SelectorState<S, D> duplicated() {
+      return new SelectorState<>(duplicator.duplicate(state), duplicator);
+    }
 
     /**
      * Get the current state
@@ -160,35 +211,12 @@ public class SelectorsStateManager {
     }
 
     /**
-     * Replace the current state with the passed one
+     * Replace the current state with the new one
      *
-     * @param state the new state
+     * @param newState the new state
      */
-    public void set(final S state) {
-      this.state = state;
-    }
-  }
-
-  /** A duplicable state containing a long */
-  public static class DuplicableLongState extends DuplicableState<Long> {
-
-    /**
-     * Create a duplicate long state with the initial state
-     *
-     * @param state the initial state
-     */
-    public DuplicableLongState(final Long state) {
-      super(state);
-    }
-
-    /**
-     * Create a deep copy of this duplicable long state
-     *
-     * @return a copy of this duplicable long state
-     */
-    @Override
-    public DuplicableLongState deepCopy() {
-      return new DuplicableLongState(get());
+    public void set(final S newState) {
+      this.state = newState;
     }
   }
 }

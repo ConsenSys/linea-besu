@@ -16,26 +16,29 @@ package org.hyperledger.besu.ethereum.blockcreation.txselection.selectors;
 
 import org.hyperledger.besu.ethereum.blockcreation.txselection.BlockSelectionContext;
 import org.hyperledger.besu.plugin.services.txselection.SelectorsStateManager;
-import org.hyperledger.besu.plugin.services.txselection.SelectorsStateManager.DuplicableState;
 
 /**
  * This class represents an abstract transaction selector which provides methods to evaluate
  * transactions.
  */
-public abstract class AbstractStatefulTransactionSelector<S extends DuplicableState<?>>
-    extends AbstractTransactionSelector {
+public abstract class AbstractStatefulTransactionSelector<S> extends AbstractTransactionSelector {
   private final SelectorsStateManager selectorsStateManager;
 
   public AbstractStatefulTransactionSelector(
       final BlockSelectionContext context,
       final SelectorsStateManager selectorsStateManager,
-      final S initialState) {
+      final S initialState,
+      final SelectorsStateManager.StateDuplicator<S> stateDuplicator) {
     super(context);
     this.selectorsStateManager = selectorsStateManager;
-    selectorsStateManager.createSelectorState(this, initialState);
+    selectorsStateManager.createSelectorState(this, initialState, stateDuplicator);
   }
 
   protected S getWorkingState() {
     return selectorsStateManager.getSelectorWorkingState(this);
+  }
+
+  protected void setWorkingState(final S newState) {
+    selectorsStateManager.setSelectorWorkingState(this, newState);
   }
 }
